@@ -4,11 +4,13 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+'''
 try:
     from flash_attn_interface import flash_attn_func  # type: ignore[import]
 except ImportError:
     # Fallback to FlashAttention 2
     from flash_attn import flash_attn_func  # type: ignore[import]
+'''
 
 from models.common import trunc_normal_init_
 
@@ -126,8 +128,18 @@ class Attention(nn.Module):
             cos, sin = cos_sin
             query, key = apply_rotary_pos_emb(query, key, cos, sin)
 
-        # flash attn
-        attn_output = flash_attn_func(q=query, k=key, v=value, causal=self.causal)
+        # flash attn repalcement
+        ## attn_output = flash_attn_func(q=query, k=key, v=value, causal=self.causal)
+
+        q = query.transpose(1, 2) # -> [bs, heads, seq_len, dim]
+        k = key.transpose(1, 2)
+        v = value.transpose(1, 2)
+        
+        attn_output = F.scaled_dot_product_attention(q, k, v, is_causal=self.causal)
+        
+        attn_output = attn_output.transpose(1, 2) # -> [bs, seq_len, heads, dim]
+
+        
         if isinstance(attn_output, tuple):  # fa2 and fa3 compatibility
             attn_output = attn_output[0]
 
