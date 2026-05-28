@@ -199,22 +199,27 @@ class HierarchicalReasoningModel_ACTV1_Inner(nn.Module):
 
         assert not z_H.requires_grad and not z_L.requires_grad
 
-## notice how we only keep the grad on for the final loop below. this is the core idea. we are hoping that the change in z_L and z_H through the final loop will to some degree hold a footprint of all
-### changes made throughout the entire forest of loops and that once we backpropagate it based only on the final loop it can still somehow take into account the path throughout all the previous loops
-### as well.
         
         # 1-step grad
         z_L = self.L_level(z_L, z_H + input_embeddings, **seq_info)
         z_H = self.H_level(z_H, z_L, **seq_info)
 
+## notice how we only keep the grad on for the final loop below. this is the core idea. we are hoping that the change in z_L and z_H through the final loop will to some degree hold a footprint of all
+### changes made throughout the entire forest of loops and that once we backpropagate it based only on the final loop it can still somehow take into account the path throughout all the previous loops
+### as well.
+        
         # LM Outputs
-        new_carry = HierarchicalReasoningModel_ACTV1InnerCarry(z_H=z_H.detach(), z_L=z_L.detach())  # We detach it so that the latest 1step grad isnt taken into account when we backpropagate at the end
-                                                                                                    ## of the sequence after this in case q_head says to continue/repeat. every backprop at the end of a
-                                                                                                    ## sequence should only take into the account the grad of the final loop of that specific sequence,
-                                                                                                    ## and not with any info/grad of the final loops of any previous sequence loops.
+        new_carry = HierarchicalReasoningModel_ACTV1InnerCarry(z_H=z_H.detach(), z_L=z_L.detach())  
+
+# We detach it so that the latest 1step grad isnt taken into account when we backpropagate at the end of the sequence after this in case q_head says to continue/repeat. every backprop at the end of a
+## sequence should only take into the account the grad of the final loop of that specific sequence, and not with any info/grad of the final loops of any previous sequence loops.
 
         # Q head
         q_logits = self.q_head(z_H[:, 0]).to(torch.float32)
+
+#z_H is of the size [batch size, number of tokens, token embedding size]. were passing on only z_H[:, 0] , ie, only the first token for each sample, thats why the new size will be
+## [batch size, embedding size] . cz we only keep passing this, the model starts to learn to treat the first token of z_H as the place to store the summary of the thought process such that the q_head
+## can try and make a good decision by just looking at that token.
         
         return new_carry, output, (q_logits[..., 0], q_logits[..., 1])
 
