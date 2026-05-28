@@ -1,3 +1,7 @@
+This is the repo for running it WITHOUT FLASH ATTENTION.
+
+below is the text of the original repo:
+
 # Hierarchical Reasoning Model
 
 ![](./assets/hrm.png)
