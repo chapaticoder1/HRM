@@ -139,6 +139,7 @@ class Attention(nn.Module):
         
         attn_output = attn_output.transpose(1, 2) # -> [bs, seq_len, heads, dim]
 
+        #till here
         
         if isinstance(attn_output, tuple):  # fa2 and fa3 compatibility
             attn_output = attn_output[0]
