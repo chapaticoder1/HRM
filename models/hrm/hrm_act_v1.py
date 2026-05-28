@@ -14,8 +14,8 @@ from models.sparse_embedding import CastedSparseEmbedding
 
 @dataclass
 class HierarchicalReasoningModel_ACTV1InnerCarry:
-    z_H: torch.Tensor
-    z_L: torch.Tensor
+    z_H: torch.Tensor #High level abstratct thought
+    z_L: torch.Tensor #Low level detailed thought
 
 
 @dataclass
