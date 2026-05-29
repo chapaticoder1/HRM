@@ -240,9 +240,9 @@ class HierarchicalReasoningModel_ACTV1(nn.Module):
         batch_size = batch["inputs"].shape[0]
 
         return HierarchicalReasoningModel_ACTV1Carry(
-            inner_carry=self.inner.empty_carry(batch_size),  # Empty is expected, it will be reseted in first pass as all sequences are halted.
+            inner_carry=self.inner.empty_carry(batch_size),  # Empty is expected, it will be reset in first pass as all sequences are halted.
             
-            steps=torch.zeros((batch_size, ), dtype=torch.int32),
+            steps=torch.zeros((batch_size, ), dtype=torch.int32), # Steps counter tensor. initially 0 of course
             halted=torch.ones((batch_size, ), dtype=torch.bool),  # Keeps track of all the current statuses of all the samples of the batches. Default to halted cz a new batch is fresh.
             
             current_data={k: torch.empty_like(v) for k, v in batch.items()}
@@ -252,9 +252,10 @@ class HierarchicalReasoningModel_ACTV1(nn.Module):
         # Update data, carry (removing halted sequences)
         new_inner_carry = self.inner.reset_carry(carry.halted, carry.inner_carry)
         
-        new_steps = torch.where(carry.halted, 0, carry.steps)
+        new_steps = torch.where(carry.halted, 0, carry.steps) # making the new steps values as 0 wherever its halted
 
-        new_current_data = {k: torch.where(carry.halted.view((-1, ) + (1, ) * (batch[k].ndim - 1)), batch[k], v) for k, v in carry.current_data.items()}
+        new_current_data = {k: torch.where(carry.halted.view((-1, ) + (1, ) * (batch[k].ndim - 1)), batch[k], v) for k, v in carry.current_data.items()} # replacing halted samples with samples of the
+                                                                                                                                                         ##next batch
 
         # Forward inner model
         new_inner_carry, logits, (q_halt_logits, q_continue_logits) = self.inner(new_inner_carry, new_current_data)
@@ -267,21 +268,29 @@ class HierarchicalReasoningModel_ACTV1(nn.Module):
         
         with torch.no_grad():
             # Step
-            new_steps = new_steps + 1
+            new_steps = new_steps + 1 # updating the step counter
+            
+            #
             is_last_step = new_steps >= self.config.halt_max_steps
             
             halted = is_last_step
 
+            # setting halted to true if the steps is equal to the set maximum amount of steps
+            
             # if training, and ACT is enabled
             if self.training and (self.config.halt_max_steps > 1):
                 # Halt signal
-                # NOTE: During evaluation, always use max steps, this is to guarantee the same halting steps inside a batch for batching purposes
-                halted = halted | (q_halt_logits > q_continue_logits)
+                # NOTE: notice that theyve put a condition for self.training to be true. this is cz they only use the learned halting thing for training. if youre only doing evaluation then in
+                ## evaluate.py u can see that that they dont use the learned q_head mechanism and instead just always go through the maximum amount of steps by default. this is to make the batching
+                ## more efficient as compared to different samples of a batch finishing at different times.
+                ## if you want even the evaluation to use the q_head then you remove the "self.training and" part of the above condition.
+                
+                halted = halted | (q_halt_logits > q_continue_logits) # should either be the last step or the halt logits should be higher than the continue logits for halt to be true
 
-                # Exploration
+                # Exploration - keeping a random minimum amount of steps so that it has time to explore
                 min_halt_steps = (torch.rand_like(q_halt_logits) < self.config.halt_exploration_prob) * torch.randint_like(new_steps, low=2, high=self.config.halt_max_steps + 1)
 
-                halted = halted & (new_steps >= min_halt_steps)
+                halted = halted & (new_steps >= min_halt_steps) # if it has to halt then it should satisfy the previous conditions as well as being over 
 
                 # Compute target Q
                 # NOTE: No replay buffer and target networks for computing target Q-value.
