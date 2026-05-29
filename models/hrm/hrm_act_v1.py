@@ -111,7 +111,7 @@ class HierarchicalReasoningModel_ACTV1_Inner(nn.Module):
 
         self.embed_tokens = CastedEmbedding(self.config.vocab_size, self.config.hidden_size, init_std=embed_init_std, cast_to=self.forward_dtype)
         self.lm_head      = CastedLinear(self.config.hidden_size, self.config.vocab_size, bias=False)
-        self.q_head       = CastedLinear(self.config.hidden_size, 2, bias=True) #cz were inputting z_H of size hidden_size and outputting a tensor of size 2 ie [continue weight, halt weight]
+        self.q_head       = CastedLinear(self.config.hidden_size, 2, bias=True) #cz were inputting z_H of size hidden_size and outputting a tensor of size 2 ie [halt weight, continue weight]
 
         self.puzzle_emb_len = -(self.config.puzzle_emb_ndim // -self.config.hidden_size)  # ceil div
         if self.config.puzzle_emb_ndim > 0:
@@ -243,7 +243,7 @@ class HierarchicalReasoningModel_ACTV1(nn.Module):
             inner_carry=self.inner.empty_carry(batch_size),  # Empty is expected, it will be reseted in first pass as all sequences are halted.
             
             steps=torch.zeros((batch_size, ), dtype=torch.int32),
-            halted=torch.ones((batch_size, ), dtype=torch.bool),  # Default to halted
+            halted=torch.ones((batch_size, ), dtype=torch.bool),  # Keeps track of all the current statuses of all the samples of the batches. Default to halted cz a new batch is fresh.
             
             current_data={k: torch.empty_like(v) for k, v in batch.items()}
         )
