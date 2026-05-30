@@ -217,7 +217,7 @@ def train_batch(config: PretrainConfig, train_state: TrainState, batch: Any, glo
     # Init carry if it is None
     if train_state.carry is None:
         with torch.device("cuda"):
-            train_state.carry = train_state.model.initial_carry(batch)  # type: ignore
+            train_state.carry = train_state.model.initial_carry(batch)  # The first time you train, there is no previous hidden state, so it creates one. After that, the carry persists across calls.
 
     # Forward
     train_state.carry, loss, metrics, _, _ = train_state.model(carry=train_state.carry, batch=batch, return_keys=[])
