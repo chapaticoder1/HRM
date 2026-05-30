@@ -222,11 +222,11 @@ class HierarchicalReasoningModel_ACTV1_Inner(nn.Module):
         # Q head
         q_logits = self.q_head(z_H[:, 0]).to(torch.float32)
 
-#z_H is of the size [batch size, number of tokens, token embedding size]. were passing on only z_H[:, 0] , ie, only the first token for each sample, thats why the new size will be
+# z_H is of the size [batch size, number of tokens, token embedding size]. were passing on only z_H[:, 0] , ie, only the first token for each sample, thats why the new size will be
 ## [batch size, embedding size] . cz we only keep passing this, the model starts to learn to treat the first token of z_H as the place to store the summary of the thought process such that the q_head
 ## can try and make a good decision by just looking at that token.
         
-        return new_carry, output, (q_logits[..., 0], q_logits[..., 1])
+        return new_carry, output, (q_logits[..., 0], q_logits[..., 1]) # basically this is the output you get when you call self.inner in the act wrapper (new zl/hl, output preds, (q_halt, q_continue))
 
 
 class HierarchicalReasoningModel_ACTV1(nn.Module):
@@ -255,15 +255,15 @@ class HierarchicalReasoningModel_ACTV1(nn.Module):
         
     def forward(self, carry: HierarchicalReasoningModel_ACTV1Carry, batch: Dict[str, torch.Tensor]) -> Tuple[HierarchicalReasoningModel_ACTV1Carry, Dict[str, torch.Tensor]]:
         # Update data, carry (removing halted sequences)
-        new_inner_carry = self.inner.reset_carry(carry.halted, carry.inner_carry)
+        new_inner_carry = self.inner.reset_carry(carry.halted, carry.inner_carry) # if its halted you reset the carry (zl and zh) if reset_flag is true
         
         new_steps = torch.where(carry.halted, 0, carry.steps) # making the new steps values as 0 wherever its halted
 
         new_current_data = {k: torch.where(carry.halted.view((-1, ) + (1, ) * (batch[k].ndim - 1)), batch[k], v) for k, v in carry.current_data.items()} # replacing halted samples with samples of the
-                                                                                                                                                         ##next batch
+                                                                                                                                                         ## next batch
 
         # Forward inner model
-        new_inner_carry, logits, (q_halt_logits, q_continue_logits) = self.inner(new_inner_carry, new_current_data)
+        new_inner_carry, logits, (q_halt_logits, q_continue_logits) = self.inner(new_inner_carry, new_current_data) 
 
         outputs = {
             "logits": logits,
@@ -275,12 +275,12 @@ class HierarchicalReasoningModel_ACTV1(nn.Module):
             # Step
             new_steps = new_steps + 1 # updating the step counter
             
-            #
+            #-
             is_last_step = new_steps >= self.config.halt_max_steps
             
             halted = is_last_step
 
-            # setting halted to true if the steps is equal to the set maximum amount of steps
+            #- setting halted to true if the steps is equal to the set maximum amount of steps
             
             # if training, and ACT is enabled
             if self.training and (self.config.halt_max_steps > 1):
