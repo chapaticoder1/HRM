@@ -165,6 +165,8 @@ class HierarchicalReasoningModel_ACTV1_Inner(nn.Module):
         # Scale
         return self.embed_scale * embedding
 
+#HierarchicalReasoningModel_ACTV1InnerCarry is just a class that holds a z_H and z_L
+    
     def empty_carry(self, batch_size: int):
         return HierarchicalReasoningModel_ACTV1InnerCarry(
             z_H=torch.empty(batch_size, self.config.seq_len + self.puzzle_emb_len, self.config.hidden_size, dtype=self.forward_dtype),
@@ -176,6 +178,9 @@ class HierarchicalReasoningModel_ACTV1_Inner(nn.Module):
             z_H=torch.where(reset_flag.view(-1, 1, 1), self.H_init, carry.z_H),
             z_L=torch.where(reset_flag.view(-1, 1, 1), self.L_init, carry.z_L),
         )
+
+    #this will be used to reset z_H and z_L after a sample halts if reset_flag is true else it keeps using 
+    ##the same z_H and z_L (torch.view input is (condition, if true equate to this, if not then equate to this))
 
     def forward(self, carry: HierarchicalReasoningModel_ACTV1InnerCarry, batch: Dict[str, torch.Tensor]) -> Tuple[HierarchicalReasoningModel_ACTV1InnerCarry, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         seq_info = dict(
@@ -290,7 +295,7 @@ class HierarchicalReasoningModel_ACTV1(nn.Module):
                 # Exploration - keeping a random minimum amount of steps so that it has time to explore
                 min_halt_steps = (torch.rand_like(q_halt_logits) < self.config.halt_exploration_prob) * torch.randint_like(new_steps, low=2, high=self.config.halt_max_steps + 1)
 
-                halted = halted & (new_steps >= min_halt_steps) # if it has to halt then it should satisfy the previous conditions as well as being over 
+                halted = halted & (new_steps >= min_halt_steps) # if it has to halt then it should satisfy the previous conditions as well as being over the minimum amount of halt steps
 
                 # Compute target Q
                 # NOTE: No replay buffer and target networks for computing target Q-value.
